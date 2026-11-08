@@ -1,0 +1,108 @@
+{
+  "name": "priberry-vscode",
+  "displayName": "Priberry: Tare and Crumple",
+  "description": "See what your AI coding agents cost and how much was avoidable (Tare), and check your agent setup and deployed apps for security holes (Crumple). Runs on your machine.",
+  "version": "0.1.0",
+  "publisher": "priberry",
+  "license": "Apache-2.0",
+  "icon": "media/icon.png",
+  "homepage": "https://priberry.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/priberry-data/priberry-vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/priberry-data/priberry-vscode/issues"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Linters",
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "ai agents",
+    "claude code",
+    "cursor",
+    "token cost",
+    "security",
+    "mcp",
+    "prompt injection",
+    "lovable",
+    "bolt"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./src/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "The workspace check (Crumple scan) only runs in trusted workspaces."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "priberry.showTareReport",
+        "title": "Show my AI agent spend (Tare)",
+        "category": "Priberry"
+      },
+      {
+        "command": "priberry.refreshTare",
+        "title": "Refresh AI agent spend (Tare)",
+        "category": "Priberry"
+      },
+      {
+        "command": "priberry.scanWorkspace",
+        "title": "Check this workspace's agent setup (Crumple)",
+        "category": "Priberry"
+      },
+      {
+        "command": "priberry.checkSite",
+        "title": "Check a deployed app (Crumple)",
+        "category": "Priberry"
+      },
+      {
+        "command": "priberry.setupApps",
+        "title": "Add Tare and Crumple to my AI apps",
+        "category": "Priberry"
+      }
+    ],
+    "configuration": {
+      "title": "Priberry",
+      "properties": {
+        "priberry.tare.command": {
+          "type": "string",
+          "default": "npx -y tarelab@0.2.0",
+          "description": "How to run Tare. Change it to a local path (for example `node /path/to/tarelab/bin/tare.mjs`) to skip npx."
+        },
+        "priberry.crumple.command": {
+          "type": "string",
+          "default": "npx -y crumplelab@0.3.1",
+          "description": "How to run Crumple. Change it to a local path (for example `node /path/to/crumplelab/bin/crumple.mjs`) to skip npx."
+        },
+        "priberry.tare.refreshMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "description": "How often the status bar re-reads your agent logs."
+        },
+        "priberry.crumple.scanOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the workspace's agent setup when a folder opens."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "4.1.0"
+  }
+}
