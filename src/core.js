@@ -79,7 +79,11 @@ function summarizeTare(r) {
 // project, a "~/" path, an absolute path, optionally followed by " → <server name>".
 function findingLocation(finding, projectDir, home = os.homedir()) {
   const where = String(finding.where || "");
-  const [rawPath, name] = where.split(/\s+→\s+/);
+  let [rawPath, name] = where.split(/\s+→\s+/);
+  // Launch Blockers writes "src/ai.ts:12": take the line as given.
+  let givenLine = null;
+  const m = /^(.+?):(\d+)$/.exec(rawPath || "");
+  if (m) { rawPath = m[1]; givenLine = Math.max(0, Number(m[2]) - 1); }
   let file = null;
   if (rawPath && rawPath !== "agent setup") {
     const p = rawPath.startsWith("~/") ? path.join(home, rawPath.slice(2)) : path.isAbsolute(rawPath) ? rawPath : path.join(projectDir, rawPath);
@@ -88,6 +92,7 @@ function findingLocation(finding, projectDir, home = os.homedir()) {
     } catch {}
   }
   if (!file) return { file: null, line: 0 };
+  if (givenLine !== null) return { file, line: givenLine };
   // Point at the line that mentions the server name, or the first package named in the title.
   const needles = [];
   if (name) needles.push(name);
@@ -208,7 +213,7 @@ function siteHtml(r, opts) {
       ${f.prompt ? `<pre>${esc(f.prompt)}</pre><button data-action="copy" data-index="${i}">Copy prompt</button>` : f.fix ? `<div style="margin-top:6px"><b>Fix:</b> ${inline(f.fix)}</div>` : ""}</div>`;
   }).join("") || `<p class="ok">No findings.</p>`}
   <p class="row" style="margin-top:24px"><button class="secondary" data-action="recheck">Check again</button><span class="muted">Checked ${esc(opts.updated || "")}. Only ${esc(r.url)} was contacted.</span></p>`;
-  return page({ title: "Crumple site check", body, ...opts });
+  return page({ title: "Greenlit site check", body, ...opts });
 }
 
 function nonce() {

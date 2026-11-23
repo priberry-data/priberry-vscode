@@ -28,6 +28,10 @@ test("findingLocation resolves files and lines", () => {
   assert.deepStrictEqual(core.findingLocation({ where: ".mcp.json → evil" }, dir), { file: path.join(dir, ".mcp.json"), line: 2 });
   assert.deepStrictEqual(core.findingLocation({ where: "package-lock.json", title: "3 dependencies run install scripts (esbuild, fsevents)" }, dir), { file: path.join(dir, "package-lock.json"), line: 2 });
   assert.deepStrictEqual(core.findingLocation({ where: "agent setup" }, dir), { file: null, line: 0 });
+  fs.mkdirSync(path.join(dir, "src"));
+  fs.writeFileSync(path.join(dir, "src", "ai.ts"), "a\nb\nc\n");
+  assert.deepStrictEqual(core.findingLocation({ where: "src/ai.ts:3" }, dir), { file: path.join(dir, "src", "ai.ts"), line: 2 });
+  assert.deepStrictEqual(core.findingLocation({ where: "src/missing.ts:3" }, dir), { file: null, line: 0 });
   assert.deepStrictEqual(core.findingLocation({ where: "~/nope/x.json" }, dir), { file: null, line: 0 });
 });
 

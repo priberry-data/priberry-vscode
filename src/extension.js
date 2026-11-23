@@ -14,6 +14,8 @@ let tareRunning = null;
 let sitePanel;
 let lastSite = null;
 let lastScan = null;
+let lbDiagnostics;
+let lastLaunch = null;
 
 const cfg = () => vscode.workspace.getConfiguration("priberry");
 const now = () => new Date().toLocaleString();
@@ -22,7 +24,7 @@ function log(line) {
   output.appendLine(`[${new Date().toLocaleTimeString()}] ${line}`);
 }
 
-// Run a Tare or Crumple command, logging what ran and any stderr to the output channel.
+// Run a Priberry tool (tare, crumple, greenlit, launchBlockers), logging what ran and any stderr to the output channel.
 async function runTool(tool, args, cwd) {
   const command = cfg().get(`${tool}.command`);
   log(`${command} ${args.join(" ")}${cwd ? `   (in ${cwd})` : ""}`);
@@ -163,14 +165,68 @@ async function scanWorkspace({ quiet = false } = {}) {
   return lastScan;
 }
 
-// ---- Crumple: deployed app check ----------------------------------------------------------
+// ---- Launch Blockers: pre-launch check → Problems panel ----------------------------------
+
+async function checkLaunch({ quiet = false } = {}) {
+  const folders = vscode.workspace.workspaceFolders || [];
+  if (!folders.length) {
+    if (!quiet) vscode.window.showInformationMessage("Open your app's folder first, then run the Launch Blockers check.");
+    return;
+  }
+  if (!vscode.workspace.isTrusted) {
+    if (!quiet) vscode.window.showInformationMessage("Launch Blockers only checks trusted workspaces. Trust this folder first.");
+    return;
+  }
+  await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: "Launch Blockers: checking for leaks" }, async () => {
+    lbDiagnostics.clear();
+    const byFile = new Map();
+    let blocking = 0;
+    let total = 0;
+    for (const folder of folders) {
+      if (folder.uri.scheme !== "file") continue;
+      const dir = folder.uri.fsPath;
+      const r = await runTool("launchBlockers", ["check", "--json"], dir);
+      const data = core.parseJson(r.stdout);
+      if (!data || !Array.isArray(data.blocking)) {
+        if (!quiet) vscode.window.showErrorMessage(`Launch Blockers could not check ${folder.name}. See Output → Priberry.`);
+        continue;
+      }
+      const items = [...data.blocking.map((f) => ({ ...f, blocks: true })), ...(Array.isArray(data.other) ? data.other : [])];
+      for (const f of items) {
+        const loc = core.findingLocation(f, dir);
+        const uri = loc.file ? vscode.Uri.file(loc.file) : folder.uri;
+        const range = new vscode.Range(loc.line, 0, loc.line, 1000);
+        const where = loc.file ? "" : ` [${f.where}]`;
+        const d = new vscode.Diagnostic(range, `${f.title}${where}. ${f.why} Fix: ${String(f.fix || "")}`, f.blocks ? vscode.DiagnosticSeverity.Error : SEVERITY[f.severity] ?? vscode.DiagnosticSeverity.Warning);
+        d.source = "Launch Blockers";
+        d.code = f.replay ? { value: `${f.severity} · see the leak`, target: vscode.Uri.parse(f.replay) } : f.severity;
+        const key = uri.toString();
+        if (!byFile.has(key)) byFile.set(key, { uri, list: [] });
+        byFile.get(key).list.push(d);
+        log(`  ${f.severity}: ${f.title} → ${loc.file ? `${vscode.workspace.asRelativePath(uri)}:${loc.line + 1}` : folder.name}`);
+        total++;
+        if (f.blocks) blocking++;
+      }
+      log(`  ${folder.name}: ${data.status}, ${data.blocking.length} blocking`);
+    }
+    for (const { uri, list } of byFile.values()) lbDiagnostics.set(uri, list);
+    if (!quiet || blocking) {
+      const msg = blocking ? `Launch Blockers: ${blocking} thing${blocking === 1 ? "" : "s"} to fix before you launch.` : total ? `Launch Blockers: nothing blocking, ${total} to review.` : "Launch Blockers: nothing found that would leak your users' data.";
+      vscode.window.showInformationMessage(msg, ...(total ? ["Show Problems"] : [])).then((pick) => pick && vscode.commands.executeCommand("workbench.actions.view.problems"));
+    }
+    lastLaunch = { blocking, total, files: [...byFile.values()].map((x) => x.uri.fsPath) };
+  });
+  return lastLaunch;
+}
+
+// ---- Greenlit: deployed app check ----------------------------------------------------------
 
 async function checkSite(urlArg) {
   let url = typeof urlArg === "string" ? core.normalizeUrl(urlArg) : null;
   if (!url) {
     const input = await vscode.window.showInputBox({
       title: "Check a deployed app",
-      prompt: "The app's address. Crumple loads it like a stranger would and looks for leaked keys and open data. Only this site is contacted.",
+      prompt: "The app's address. Greenlit loads it like a stranger would and looks for leaked keys and open data. Only this site is contacted.",
       placeHolder: "myapp.lovable.app",
       ignoreFocusOut: true,
       validateInput: (v) => (!v || core.normalizeUrl(v) ? null : "Enter a web address, like myapp.lovable.app"),
@@ -178,15 +234,15 @@ async function checkSite(urlArg) {
     if (!input) return;
     url = core.normalizeUrl(input);
   }
-  const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Crumple: checking ${new URL(url).host}…` }, () => runTool("crumple", ["site", url, "--json"]));
+  const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Greenlit: checking ${new URL(url).host}…` }, () => runTool("greenlit", [url, "--json"]));
   const data = core.parseJson(r.stdout);
   if (!data || !data.grade) {
-    vscode.window.showErrorMessage(`Crumple could not check ${url}. See Output → Priberry.`, "Show output").then((a) => a && output.show());
+    vscode.window.showErrorMessage(`Greenlit could not check ${url}. See Output → Priberry.`, "Show output").then((a) => a && output.show());
     return;
   }
   lastSite = { data, url, at: now() };
   if (!sitePanel) {
-    sitePanel = vscode.window.createWebviewPanel("priberry.site", "Crumple: site check", vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
+    sitePanel = vscode.window.createWebviewPanel("priberry.site", "Greenlit: site check", vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
     sitePanel.onDidDispose(() => (sitePanel = undefined));
     sitePanel.webview.onDidReceiveMessage(async (m) => {
       if (m.action === "copy") {
@@ -199,7 +255,7 @@ async function checkSite(urlArg) {
       if (m.action === "recheck" && lastSite) checkSite(lastSite.url);
     });
   }
-  sitePanel.title = `Crumple: ${data.grade} · ${new URL(url).host}`;
+  sitePanel.title = `Greenlit: ${data.grade} · ${new URL(url).host}`;
   sitePanel.webview.html = core.siteHtml(data, { nonce: core.nonce(), cspSource: sitePanel.webview.cspSource, updated: lastSite.at });
   sitePanel.reveal();
 }
@@ -239,7 +295,7 @@ const uriHandler = {
       const url = core.normalizeUrl(params.get("url"));
       if (!url) return checkSite();
       // A link opened this, so ask before contacting anything.
-      const ok = await vscode.window.showInformationMessage(`Check ${url} with Crumple?`, { modal: true, detail: "Crumple loads the site like a stranger would. Only this address is contacted." }, "Check it");
+      const ok = await vscode.window.showInformationMessage(`Check ${url} with Greenlit?`, { modal: true, detail: "Greenlit loads the site like a stranger would. Only this address is contacted." }, "Check it");
       if (ok === "Check it") checkSite(url);
     } else if (uri.path === "/tare") {
       showTareReport();
@@ -247,11 +303,18 @@ const uriHandler = {
   },
 };
 
+// Checks that run quietly when a folder opens. One at a time: both start npx.
+async function onOpen() {
+  if (cfg().get("crumple.scanOnOpen")) await scanWorkspace({ quiet: true });
+  if (cfg().get("launchBlockers.checkOnOpen")) await checkLaunch({ quiet: true });
+}
+
 // ---- activation ---------------------------------------------------------------------------
 
 function activate(context) {
   output = vscode.window.createOutputChannel("Priberry");
   diagnostics = vscode.languages.createDiagnosticCollection("crumple");
+  lbDiagnostics = vscode.languages.createDiagnosticCollection("launch-blockers");
   statusItem = vscode.window.createStatusBarItem("priberry.tare", vscode.StatusBarAlignment.Right, 100);
   statusItem.name = "Tare: AI agent spend";
   statusItem.command = "priberry.showTareReport";
@@ -260,22 +323,24 @@ function activate(context) {
   context.subscriptions.push(
     output,
     diagnostics,
+    lbDiagnostics,
     statusItem,
     vscode.commands.registerCommand("priberry.showTareReport", showTareReport),
     vscode.commands.registerCommand("priberry.refreshTare", refreshTare),
     vscode.commands.registerCommand("priberry.scanWorkspace", () => scanWorkspace()),
+    vscode.commands.registerCommand("priberry.checkLaunch", () => checkLaunch()),
     vscode.commands.registerCommand("priberry.checkSite", checkSite),
     vscode.commands.registerCommand("priberry.setupApps", setupApps),
     vscode.window.registerUriHandler(uriHandler),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => cfg().get("crumple.scanOnOpen") && scanWorkspace({ quiet: true })),
-    vscode.workspace.onDidGrantWorkspaceTrust(() => cfg().get("crumple.scanOnOpen") && scanWorkspace({ quiet: true })),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => onOpen()),
+    vscode.workspace.onDidGrantWorkspaceTrust(() => onOpen()),
     { dispose: () => clearInterval(timer) }
   );
 
   refreshTare();
   const minutes = Math.max(5, Number(cfg().get("tare.refreshMinutes")) || 60);
   timer = setInterval(refreshTare, minutes * 60 * 1000);
-  if (cfg().get("crumple.scanOnOpen")) scanWorkspace({ quiet: true });
+  onOpen();
 
   // Read-only view of the extension's state, used by the integration test.
   return {
@@ -284,6 +349,7 @@ function activate(context) {
     siteHtml: () => (sitePanel ? sitePanel.webview.html : null),
     refreshTare,
     scanWorkspace,
+    checkLaunch,
     checkSite,
     showTareReport,
   };

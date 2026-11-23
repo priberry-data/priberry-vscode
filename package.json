@@ -1,8 +1,8 @@
 {
   "name": "priberry-vscode",
-  "displayName": "Priberry: Tare and Crumple",
-  "description": "See what your AI coding agents cost and how much was avoidable (Tare), and check your agent setup and deployed apps for security holes (Crumple). Runs on your machine.",
-  "version": "0.1.0",
+  "displayName": "Priberry: Launch Blockers, Greenlit, Crumple and Tare",
+  "description": "Priberry's four free safety tools in your editor: Launch Blockers flags what would leak your users' data before you deploy, Greenlit grades your live app, Crumple checks your agent setup, and Tare shows what your AI coding agents cost. Runs on your machine.",
+  "version": "0.2.0",
   "publisher": "priberry",
   "license": "Apache-2.0",
   "icon": "media/icon.png",
@@ -31,7 +31,11 @@
     "mcp",
     "prompt injection",
     "lovable",
-    "bolt"
+    "bolt",
+    "supabase",
+    "firebase",
+    "vibe coding",
+    "row level security"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -40,7 +44,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "The workspace check (Crumple scan) only runs in trusted workspaces."
+      "description": "The workspace checks (Crumple and Launch Blockers) only run in trusted workspaces."
     }
   },
   "contributes": {
@@ -56,13 +60,18 @@
         "category": "Priberry"
       },
       {
+        "command": "priberry.checkLaunch",
+        "title": "Check before launch (Launch Blockers)",
+        "category": "Priberry"
+      },
+      {
         "command": "priberry.scanWorkspace",
         "title": "Check this workspace's agent setup (Crumple)",
         "category": "Priberry"
       },
       {
         "command": "priberry.checkSite",
-        "title": "Check a deployed app (Crumple)",
+        "title": "Check a deployed app (Greenlit)",
         "category": "Priberry"
       },
       {
@@ -76,13 +85,23 @@
       "properties": {
         "priberry.tare.command": {
           "type": "string",
-          "default": "npx -y tarelab@0.2.0",
+          "default": "npx -y tarelab@0.2.2",
           "description": "How to run Tare. Change it to a local path (for example `node /path/to/tarelab/bin/tare.mjs`) to skip npx."
         },
         "priberry.crumple.command": {
           "type": "string",
-          "default": "npx -y crumplelab@0.3.1",
+          "default": "npx -y crumplelab@0.4.0",
           "description": "How to run Crumple. Change it to a local path (for example `node /path/to/crumplelab/bin/crumple.mjs`) to skip npx."
+        },
+        "priberry.greenlit.command": {
+          "type": "string",
+          "default": "npx -y greenlitlab@0.5.0",
+          "description": "How to run Greenlit. Change it to a local path (for example `node /path/to/greenlitlab/bin/greenlit.mjs`) to skip npx."
+        },
+        "priberry.launchBlockers.command": {
+          "type": "string",
+          "default": "npx -y launch-blockers@0.2.0",
+          "description": "How to run Launch Blockers. Change it to a local path (for example `node /path/to/launch-blockers/bin/launch-blockers.mjs`) to skip npx."
         },
         "priberry.tare.refreshMinutes": {
           "type": "number",
@@ -94,6 +113,11 @@
           "type": "boolean",
           "default": true,
           "description": "Check the workspace's agent setup when a folder opens."
+        },
+        "priberry.launchBlockers.checkOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the workspace for ways it could leak users' data when a folder opens."
         }
       }
     }

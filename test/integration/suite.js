@@ -1,5 +1,5 @@
 // Runs inside VS Code (via --extensionTestsPath) against the installed extension and
-// exercises the three features. Writes a JSON result to PRIBERRY_TEST_OUT.
+// exercises every feature. Writes a JSON result to PRIBERRY_TEST_OUT.
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
@@ -38,16 +38,23 @@ exports.run = async function () {
     check("finding mapped to .mcp.json line of the server", list.some((l) => /^\.mcp\.json:3 /.test(l)));
     check("finding mapped to CLAUDE.md", list.some((l) => /^CLAUDE\.md:/.test(l)));
 
-    // 3. Deployed app check.
+    // 3. Launch Blockers: leak check lands in the Problems panel on the right lines.
+    await api.checkLaunch({ quiet: true });
+    const lb = vscode.languages.getDiagnostics().flatMap(([uri, d]) => d.filter((x) => x.source === "Launch Blockers").map((x) => `${vscode.workspace.asRelativePath(uri)}:${x.range.start.line + 1} ${x.message.slice(0, 70)}`));
+    check("Launch Blockers findings in Problems panel", lb.length > 0, lb);
+    check("browser-shipped secret mapped to src/ai.ts:1", lb.some((l) => /^src\/ai\.ts:1 .*VITE_OPENAI_API_KEY/.test(l)));
+    check("table without Row Level Security mapped to its migration", lb.some((l) => /^supabase\/migrations\/.+\.sql:\d+ .*Row Level Security/.test(l)));
+
+    // 4. Deployed app check (Greenlit).
     await api.checkSite(process.env.PRIBERRY_TEST_SITE || "https://priberry.com");
     const site = api.siteHtml();
     const grade = site && (site.match(/class="grade[^"]*">([A-F])</) || [])[1];
     check("site check webview shows a grade", !!grade, grade);
     check("site findings have copy buttons when there are prompts", site && (site.includes('data-action="copy"') || !/<pre>/.test(site)), (site || "").replace(/<style>[\s\S]*?<\/style>/, "").replace(/<script[\s\S]*?<\/script>/, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 600));
 
-    // 4. Commands are registered.
+    // 5. Commands are registered.
     const cmds = await vscode.commands.getCommands(true);
-    const ours = ["priberry.showTareReport", "priberry.refreshTare", "priberry.scanWorkspace", "priberry.checkSite", "priberry.setupApps"];
+    const ours = ["priberry.showTareReport", "priberry.refreshTare", "priberry.scanWorkspace", "priberry.checkLaunch", "priberry.checkSite", "priberry.setupApps"];
     check("all commands registered", ours.every((c) => cmds.includes(c)), ours.filter((c) => !cmds.includes(c)));
   } catch (e) {
     check("no exception", false, String(e && e.stack));
