@@ -95,12 +95,12 @@
         },
         "priberry.greenlit.command": {
           "type": "string",
-          "default": "npx -y greenlitlab@0.5.0",
+          "default": "npx -y greenlitlab@0.5.1",
           "description": "How to run Greenlit. Change it to a local path (for example `node /path/to/greenlitlab/bin/greenlit.mjs`) to skip npx."
         },
         "priberry.launchBlockers.command": {
           "type": "string",
-          "default": "npx -y launch-blockers@0.2.0",
+          "default": "npx -y launch-blockers@0.2.1",
           "description": "How to run Launch Blockers. Change it to a local path (for example `node /path/to/launch-blockers/bin/launch-blockers.mjs`) to skip npx."
         },
         "priberry.tare.refreshMinutes": {

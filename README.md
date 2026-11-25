@@ -33,8 +33,8 @@ By default the extension runs the tools with `npx`, so the first run downloads `
 | --- | --- |
 | `priberry.tare.command` | `npx -y tarelab@0.2.2` |
 | `priberry.crumple.command` | `npx -y crumplelab@0.4.0` |
-| `priberry.greenlit.command` | `npx -y greenlitlab@0.5.0` |
-| `priberry.launchBlockers.command` | `npx -y launch-blockers@0.2.0` |
+| `priberry.greenlit.command` | `npx -y greenlitlab@0.5.1` |
+| `priberry.launchBlockers.command` | `npx -y launch-blockers@0.2.1` |
 | `priberry.tare.refreshMinutes` | `60` |
 | `priberry.crumple.scanOnOpen` | `true` |
 | `priberry.launchBlockers.checkOnOpen` | `true` |
